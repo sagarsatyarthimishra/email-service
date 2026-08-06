@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @CrossOrigin(origins = {
         "http://localhost:5173",
+        "https://www.cavinayjagdish.in",
         "https://cavinayjagdish.in/"
 })
 public class EmailController {
