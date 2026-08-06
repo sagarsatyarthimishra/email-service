@@ -23,3 +23,7 @@ server:
 
 admin:
   email: ${ADMIN_EMAIL}
+
+resend:
+  api:
+    key: ${RESEND_API_KEY}

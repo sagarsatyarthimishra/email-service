@@ -2,57 +2,74 @@ package com.sagar.emailservice.service.impl;
 
 import com.sagar.emailservice.dto.BookCallRequest;
 import com.sagar.emailservice.service.EmailService;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+
+import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
 
-    private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
 
     @Value("${admin.email}")
     private String adminEmail;
 
-    @Value("${spring.mail.username}")
-    private String mailUsername;
+    @Value("${resend.api.key}")
+    private String resendApiKey;
+
+    private final OkHttpClient client = new OkHttpClient();
 
     @Override
     public void sendBookCallMail(BookCallRequest request) {
 
-        try {
+        Context context = new Context();
 
-            Context context = new Context();
+        context.setVariable("name", request.getName());
+        context.setVariable("phone", request.getPhone());
+        context.setVariable("email", request.getEmail());
+        context.setVariable("service", request.getService());
 
-            context.setVariable("name", request.getName());
-            context.setVariable("phone", request.getPhone());
-            context.setVariable("email", request.getEmail());
-            context.setVariable("service", request.getService());
+        String html = templateEngine.process("book-call", context);
 
-            String html = templateEngine.process("book-call", context);
+        String json = """
+                {
+                  "from":"Book A Call <onboarding@resend.dev>",
+                  "to":["%s"],
+                  "subject":"📞 New Book A Call Request",
+                  "html":%s
+                }
+                """.formatted(
+                adminEmail,
+                "\"" + html.replace("\"", "\\\"")
+                        .replace("\n", "")
+                        .replace("\r", "") + "\""
+        );
 
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
+        RequestBody body = RequestBody.create(
+                json,
+                MediaType.parse("application/json")
+        );
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(mimeMessage, true, "UTF-8");
+        Request httpRequest = new Request.Builder()
+                .url("https://api.resend.com/emails")
+                .addHeader("Authorization", "Bearer " + resendApiKey)
+                .post(body)
+                .build();
 
-            helper.setFrom(mailUsername);
-            helper.setTo(adminEmail);
-            helper.setSubject("📞 New Book a Call Request");
-            helper.setText(html, true);
+        try (Response response = client.newCall(httpRequest).execute()) {
 
-            mailSender.send(mimeMessage);
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("Resend Error : " + response.body().string());
+            }
 
-        } catch (MessagingException e) {
-            throw new RuntimeException("Unable to send email", e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }
