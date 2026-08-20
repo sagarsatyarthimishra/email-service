@@ -17,6 +17,5 @@ public class BookCallRequest {
     @NotBlank(message = "Email is required")
     private String email;
 
-    @NotBlank(message = "Service is required")
     private String service;
 }
